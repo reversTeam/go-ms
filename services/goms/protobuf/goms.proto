@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package go.micro.service.goms;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+service GoMs {
+
+	rpc List(google.protobuf.Empty) returns (GoMsResponse) {
+		option (google.api.http) = {
+			get: "/goms"
+		};
+	}
+
+	rpc Create(google.protobuf.Empty) returns (GoMsResponse) {
+		option (google.api.http) = {
+			post: "/goms"
+			body: "*"
+		};
+	}
+
+	rpc Get(GoMsEntityRequest) returns (GoMsResponse) {
+		option (google.api.http) = {
+			get: "/goms/{id}"
+		};
+	}
+
+	rpc Update(GoMsEntityRequest) returns (GoMsResponse) {
+		option (google.api.http) = {
+			patch: "/goms/{id}"
+			body: "*"
+		};
+	}
+
+	rpc Delete(GoMsEntityRequest) returns (GoMsResponse) {
+		option (google.api.http) = {
+			delete: "/goms/{id}"
+		};
+	}
+}
+
+message GoMsResponse {
+	string Message = 1 [json_name="message"];
+}
+
+message GoMsEntityRequest {
+	string id = 2 [json_name="id"];
+}

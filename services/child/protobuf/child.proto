@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package go.micro.service.child;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "github.com/reversTeam/go-ms/services/goms/protobuf/goms.proto";
+
+service Child {
+
+	rpc List(google.protobuf.Empty) returns (goms.GoMsResponse) {
+		option (google.api.http) = {
+			get: "/child"
+		};
+	}
+
+	rpc Create(google.protobuf.Empty) returns (goms.GoMsResponse) {
+		option (google.api.http) = {
+			post: "/child"
+			body: "*"
+		};
+	}
+
+	rpc Get(goms.GoMsEntityRequest) returns (goms.GoMsResponse) {
+		option (google.api.http) = {
+			get: "/child/{id}"
+		};
+	}
+
+	rpc Update(goms.GoMsEntityRequest) returns (goms.GoMsResponse) {
+		option (google.api.http) = {
+			patch: "/child/{id}"
+			body: "*"
+		};
+	}
+
+	rpc Delete(goms.GoMsEntityRequest) returns (goms.GoMsResponse) {
+		option (google.api.http) = {
+			delete: "/child/{id}"
+		};
+	}
+}
