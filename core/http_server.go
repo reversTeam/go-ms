@@ -2,11 +2,12 @@ package core
 
 import (
 	"fmt"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"golang.org/x/net/context"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"golang.org/x/net/context"
 )
 
 // Definition of GoMsHttpServer struct
@@ -90,7 +91,7 @@ func (o *GoMsHttpServer) Start() error {
 		return err
 	}
 	uri := fmt.Sprintf("%s:%d", o.Host, o.Port)
-	log.Printf("[HTTP] Server listen on %s\n", uri)
+	log.Printf("[HTTP] Server listen on http://%s\n", uri)
 
 	o.Handle("/", o.Mux)
 
