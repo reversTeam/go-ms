@@ -33,7 +33,7 @@ The objective is to make the service completely independent of its handlers, the
 
 This project requires a minimum of packets to guarantee its functioning. Please install the following libraries:
  - libprotoc 3.11.2
- - go1.13.5
+ - go1.20
 
 
 ### How to use it ?
@@ -41,6 +41,7 @@ This project requires a minimum of packets to guarantee its functioning. Please 
 To use it, simply install it with the following command
 ```
 go get github.com/reversTeam/go-ms
+go mod tidy
 ```
 This command will allow you to add the framework directly to your `$ GOPATH`, that is to say that you do not have to` git clone` and that you can simply import it into your project.
 You can look at the example files which will allow you to deploy the different servers:
@@ -49,195 +50,87 @@ You can look at the example files which will allow you to deploy the different s
  - gateway = grpc + http
 
 We will take the example of the file which makes it possible to make the gateway, because this one has the merit of launching the two servers (grpc + http)
+
+1. Create a config file in `./config/config.yml`
+```yaml
+grpc:
+  host: "127.0.0.1"
+  port: 42001
+http:
+  host: "127.0.0.1"
+  port: 8080
+exporter:
+  host: "127.0.0.1"
+  port: 4242
+  path: "/metrics"
+  interval: 1
+services:
+  goms:
+    grpc: true
+    http: true
+    config:
+      database:
+        host: 127.0.0.1
+        port: 3306
+  child:
+    grpc: true
+    http: true
+    config:
+      database:
+        host: 127.0.0.1
+        port: 5432
+```
+
+2. Create the main.go
 ```golang
 package main
 
 import (
 	"flag"
-	"github.com/reversTeam/go-ms/core"
-	"github.com/reversTeam/go-ms/services/goms"
-	"github.com/reversTeam/go-ms/services/child"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 	"log"
+
+	"github.com/reversTeam/go-ms/core"
+	"github.com/reversTeam/go-ms/services/child"
+	"github.com/reversTeam/go-ms/services/goms"
 )
 
 const (
-	// Default flag values for GRPC server
-	GRPC_DEFAULT_HOST = "127.0.0.1"
-	GRPC_DEFAULT_PORT = 42001
-
-	// Default flag values for http server
-	HTTP_DEFAULT_HOST = "127.0.0.1"
-	HTTP_DEFAULT_PORT = 8080
+	GO_MS_CONFIG_FILEPATH = "./config/config.yml"
 )
 
 var (
-	// flags for Grpc server
-	grpcHost = flag.String("grpc-host", GRPC_DEFAULT_HOST, "Grpc listening host")
-	grpcPort = flag.Int("grpc-port", GRPC_DEFAULT_PORT, "Grpc listening port")
+	configFilePath = flag.String("config", GO_MS_CONFIG_FILEPATH, "yaml config filepath")
+)
 
-	// flags for http server
-	httpHost = flag.String("http-host", HTTP_DEFAULT_HOST, "http gateway host")
-	httpPort = flag.Int("http-port", HTTP_DEFAULT_PORT, "http gateway port")
+var (
+	goMsServices = map[string]func(string, core.ServiceConfig) core.GoMsServiceInterface{
+		"goms": core.RegisterServiceMap(func(name string, config core.ServiceConfig) core.GoMsServiceInterface {
+			return goms.NewService(name, config)
+		}),
+		"child": core.RegisterServiceMap(func(name string, config core.ServiceConfig) core.GoMsServiceInterface {
+			return child.NewService(name, config)
+		}),
+	}
 )
 
 func main() {
-	// Instantiate context in background
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	// Parse flags
 	flag.Parse()
-
-	// Create a gateway configuration
-	opts := []grpc.DialOption{
-		grpc.WithInsecure(),
-	}
-
-	// setup servers
-	grpcServer := core.NewGoMsGrpcServer(ctx, *grpcHost, *grpcPort, opts)
-	httpServer := core.NewGoMsHttpServer(ctx, *httpHost, *httpPort, grpcServer)
-
-	// setup services
-	gomsService := goms.NewService("goms")
-	childService := child.NewService("child")
-
-	// Register service to the grpc server
-	grpcServer.AddService(gomsService)
-	grpcServer.AddService(childService)
-
-	// Register service to the http server
-	httpServer.AddService(gomsService)
-	httpServer.AddService(childService)
-
-	// Graceful stop servers
-	core.AddServerGracefulStop(grpcServer)
-	core.AddServerGracefulStop(httpServer)
-	// Catch ctrl + c
-	done := core.CatchStopSignals()
-
-	// Start Grpc Server
-	err := grpcServer.Start()
+	config, err := core.NewConfig(*configFilePath)
 	if err != nil {
-		log.Fatal("An error occured, the grpc server can be running", err)
-	}
-	// Start Http Server
-	err = httpServer.Start()
-	if err != nil {
-		log.Fatal("An error occured, the http server can be running", err)
+		log.Panic(err)
 	}
 
-	<-done
+	app := core.NewApplication(config, goMsServices)
+	app.Start()
 }
 ```
 
-If we break down the code we have above we can see that we have different phases:
- - Import of libraries which are necessary to operate your hand
-```golang
-import (
-	"flag"
-	"github.com/reversTeam/go-ms/core"
-	"github.com/reversTeam/go-ms/services/goms"   // Only for example
-	"github.com/reversTeam/go-ms/services/child"  // Only for example
-	// "github.com/yoursName/go-ms-service-what-you-want"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"log"
-)
- ```
- - Initialization of the constants for the default values ​​of the flags, readability questions
- ```golang
- const (
-	// Default flag values for GRPC server
-	GRPC_DEFAULT_HOST = "127.0.0.1"
-	GRPC_DEFAULT_PORT = 42001
-
-	// Default flag values for http server
-	HTTP_DEFAULT_HOST = "127.0.0.1"
-	HTTP_DEFAULT_PORT = 8080
-)
- ```
- - Initialization of program flags in global variables, questionable but extremely readable
-```golang
-var (
-	// flags for Grpc server
-	grpcHost = flag.String("grpc-host", GRPC_DEFAULT_HOST, "Grpc listening host")
-	grpcPort = flag.Int("grpc-port", GRPC_DEFAULT_PORT, "Grpc listening port")
-
-	// flags for http server
-	httpHost = flag.String("http-host", HTTP_DEFAULT_HOST, "http gateway host")
-	httpPort = flag.Int("http-port", HTTP_DEFAULT_PORT, "http gateway port")
-)
-```
- - Initialization of grpc and http servers
-```golang
-// Instantiate context in background
-ctx := context.Background()
-ctx, cancel := context.WithCancel(ctx)
-defer cancel()
-
-// Parse flags
-flag.Parse()
-
-// Create a gateway configuration
-opts := []grpc.DialOption{
-	grpc.WithInsecure(),
-}
-
-// setup servers
-grpcServer := core.NewGoMsGrpcServer(ctx, *grpcHost, *grpcPort, opts)
-httpServer := core.NewGoMsHttpServer(ctx, *httpHost, *httpPort, grpcServer)
-```
- - Service initialization
-   If you create your own modules try to respect this name as well as possible for your repositories, I would try afterwards to make a service manager that everyone can offer their own services.
-```golang
-// setup services
-
-gomsService := goms.NewService("goms")    // import "github.com/reversTeam/go-ms/services/goms"
-childService := child.NewService("child") // import "github.com/reversTeam/go-ms/services/child"
-whatYouWantService := whatYouWant.NewService("what-you-want") // import "github.com/yoursName/go-ms-service-what-you-want"
-```
- - Ajout des services sur les différents serveurs
-```golang
-// Register service to the grpc server
-grpcServer.AddService(gomsService)
-grpcServer.AddService(childService)
-
-// Register service to the http server
-httpServer.AddService(gomsService)
-httpServer.AddService(childService)
-```
- - Ajout des signaux pour couper les services
-```golang
-// Graceful stop servers
-core.AddServerGracefulStop(grpcServer)
-core.AddServerGracefulStop(httpServer)
-// Catch ctrl + c
-done := core.CatchStopSignals()
-```
- - Launch of different servers
- If you want to start only one of the two servers, delete the code that starts the one you don't want. In case you launch an http server, you will have to give it the configuration of a functional grpc server.
-```golang
-// Start Grpc Server
-err := grpcServer.Start()
-if err != nil {
-	log.Fatal("An error occured, the grpc server can be running", err)
-}
-// Start Http Server
-err = httpServer.Start()
-if err != nil {
-	log.Fatal("An error occured, the http server can be running", err)
-}
-```
- - We are waiting for the signal telling us to finish the services, in the case of a ctrl + c for example
-```golang
-<-done
+### Run server :
+```bash
+go run main.go
 ```
 
-### Credits
-
- - go-micro
- - golang
- - protoc
+With an other config file:
+```bash
+go run main.go -config other/path/to/config.yml
+```

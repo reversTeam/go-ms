@@ -12,12 +12,13 @@ import (
 // Define the service structure
 type ChildService struct {
 	*goms.GoMsService
+	config core.ServiceConfig
 }
 
 // Instanciate the service without dependency because it's role of ServiceFactory
-func NewService(name string) *ChildService {
+func NewService(name string, config core.ServiceConfig) *ChildService {
 	s := &ChildService{
-		GoMsService: goms.NewService(name),
+		GoMsService: goms.NewService(name, config),
 	}
 
 	return s
@@ -34,8 +35,8 @@ func (o *ChildService) RegisterGrpc(gs *core.GoMsGrpcServer) {
 }
 
 // Endpoint :
-//  - grpc : List
-//  - http : Get /child
+//   - grpc : List
+//   - http : Get /child
 func (o *ChildService) List(ctx context.Context, in *empty.Empty) (*ms.GoMsResponse, error) {
 	return &ms.GoMsResponse{
 		Message: "Child List",
@@ -43,8 +44,8 @@ func (o *ChildService) List(ctx context.Context, in *empty.Empty) (*ms.GoMsRespo
 }
 
 // Endpoint :
-//  - grpc : Create
-//  - http : POST /child
+//   - grpc : Create
+//   - http : POST /child
 func (o *ChildService) Create(ctx context.Context, in *empty.Empty) (*ms.GoMsResponse, error) {
 	return &ms.GoMsResponse{
 		Message: "Child Create",
@@ -52,8 +53,8 @@ func (o *ChildService) Create(ctx context.Context, in *empty.Empty) (*ms.GoMsRes
 }
 
 // Endpoint :
-//  - grpc : Get
-//  - http : GET /child/{id}
+//   - grpc : Get
+//   - http : GET /child/{id}
 func (o *ChildService) Get(ctx context.Context, in *ms.GoMsEntityRequest) (*ms.GoMsResponse, error) {
 	return &ms.GoMsResponse{
 		Message: "Child View",
@@ -61,8 +62,8 @@ func (o *ChildService) Get(ctx context.Context, in *ms.GoMsEntityRequest) (*ms.G
 }
 
 // Endpoint :
-//  - grpc : Update
-//  - http : PATCH /child/{id}
+//   - grpc : Update
+//   - http : PATCH /child/{id}
 func (o *ChildService) Update(ctx context.Context, in *ms.GoMsEntityRequest) (*ms.GoMsResponse, error) {
 	return &ms.GoMsResponse{
 		Message: "Child Update",
@@ -70,8 +71,8 @@ func (o *ChildService) Update(ctx context.Context, in *ms.GoMsEntityRequest) (*m
 }
 
 // Endpoint :
-//  - grpc : Delete
-//  - http : PATCH /child/{id}
+//   - grpc : Delete
+//   - http : PATCH /child/{id}
 func (o *ChildService) Delete(ctx context.Context, in *ms.GoMsEntityRequest) (*ms.GoMsResponse, error) {
 	return &ms.GoMsResponse{
 		Message: "Child Delete",
