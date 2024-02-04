@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package go.micro.service.goms;
 
+option go_package = "github.com/reversTeam/go-ms/services/goms/protobuf";
+
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 
