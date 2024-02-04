@@ -1,0 +1,26 @@
+grpc:
+  host: "127.0.0.1"
+  port: 42001
+http:
+  host: "127.0.0.1"
+  port: 8080
+exporter:
+  host: "127.0.0.1"
+  port: 4242
+  path: "/metrics"
+  interval: 1
+services:
+  goms:
+    grpc: true
+    http: true
+    config:
+      database:
+        host: 127.0.0.1
+        port: 3306
+  child:
+    grpc: true
+    http: true
+    config:
+      database:
+        host: 127.0.0.1
+        port: 5432

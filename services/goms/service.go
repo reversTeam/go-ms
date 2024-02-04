@@ -11,14 +11,16 @@ import (
 // Define the service structure
 type GoMsService struct {
 	Name    string
+	config  core.ServiceConfig
 	Handler core.GoMsHandlerInterface
 	Metrics *GoMsMetrics
 }
 
 // Instanciate the service without dependency because it's role of ServiceFactory
-func NewService(name string) *GoMsService {
+func NewService(name string, config core.ServiceConfig) *GoMsService {
 	o := &GoMsService{
 		Name:    name,
+		config:  config,
 		Handler: NewHandler(),
 		Metrics: NewGoMsMetrics(name),
 	}
@@ -46,8 +48,8 @@ func (o *GoMsService) RegisterGrpc(gs *core.GoMsGrpcServer) {
 }
 
 // Endpoint :
-//  - grpc : List
-//  - http : Get /goms
+//   - grpc : List
+//   - http : Get /goms
 func (o *GoMsService) List(ctx context.Context, in *empty.Empty) (*pb.GoMsResponse, error) {
 	return &pb.GoMsResponse{
 		Message: "GoMs List",
@@ -55,8 +57,8 @@ func (o *GoMsService) List(ctx context.Context, in *empty.Empty) (*pb.GoMsRespon
 }
 
 // Endpoint :
-//  - grpc : Create
-//  - http : POST /goms
+//   - grpc : Create
+//   - http : POST /goms
 func (o *GoMsService) Create(ctx context.Context, in *empty.Empty) (*pb.GoMsResponse, error) {
 	return &pb.GoMsResponse{
 		Message: "GoMs Create",
@@ -64,8 +66,8 @@ func (o *GoMsService) Create(ctx context.Context, in *empty.Empty) (*pb.GoMsResp
 }
 
 // Endpoint :
-//  - grpc : Get
-//  - http : GET /goms/{id}
+//   - grpc : Get
+//   - http : GET /goms/{id}
 func (o *GoMsService) Get(ctx context.Context, in *pb.GoMsEntityRequest) (*pb.GoMsResponse, error) {
 	return &pb.GoMsResponse{
 		Message: "GoMs View",
@@ -73,8 +75,8 @@ func (o *GoMsService) Get(ctx context.Context, in *pb.GoMsEntityRequest) (*pb.Go
 }
 
 // Endpoint :
-//  - grpc : Update
-//  - http : PATCH /goms/{id}
+//   - grpc : Update
+//   - http : PATCH /goms/{id}
 func (o *GoMsService) Update(ctx context.Context, in *pb.GoMsEntityRequest) (*pb.GoMsResponse, error) {
 	return &pb.GoMsResponse{
 		Message: "GoMs Update",
@@ -82,8 +84,8 @@ func (o *GoMsService) Update(ctx context.Context, in *pb.GoMsEntityRequest) (*pb
 }
 
 // Endpoint :
-//  - grpc : Delete
-//  - http : PATCH /goms/{id}
+//   - grpc : Delete
+//   - http : PATCH /goms/{id}
 func (o *GoMsService) Delete(ctx context.Context, in *pb.GoMsEntityRequest) (*pb.GoMsResponse, error) {
 	return &pb.GoMsResponse{
 		Message: "GoMs Delete",

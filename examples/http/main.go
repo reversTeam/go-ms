@@ -2,12 +2,13 @@ package main
 
 import (
 	"flag"
+	"log"
+
 	"github.com/reversTeam/go-ms/core"
 	"github.com/reversTeam/go-ms/services/child"
 	"github.com/reversTeam/go-ms/services/goms"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"log"
 )
 
 const (
@@ -64,8 +65,8 @@ func main() {
 	httpServer := core.NewGoMsHttpServer(ctx, *httpHost, *httpPort, grpcServer)
 
 	// setup services
-	gomsService := goms.NewService("goms")
-	childService := child.NewService("child")
+	gomsService := goms.NewService("goms", core.ServiceConfig{})
+	childService := child.NewService("child", core.ServiceConfig{})
 
 	_ = childService
 
