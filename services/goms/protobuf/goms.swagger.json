@@ -4,6 +4,11 @@
     "title": "services/goms/protobuf/goms.proto",
     "version": "version not set"
   },
+  "tags": [
+    {
+      "name": "GoMs"
+    }
+  ],
   "consumes": [
     "application/json"
   ],
@@ -13,12 +18,18 @@
   "paths": {
     "/goms": {
       "get": {
-        "operationId": "List",
+        "operationId": "GoMs_List",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/gomsGoMsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
             }
           }
         },
@@ -27,12 +38,18 @@
         ]
       },
       "post": {
-        "operationId": "Create",
+        "operationId": "GoMs_Create",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/gomsGoMsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
             }
           }
         },
@@ -42,6 +59,7 @@
             "in": "body",
             "required": true,
             "schema": {
+              "type": "object",
               "properties": {}
             }
           }
@@ -53,12 +71,18 @@
     },
     "/goms/{id}": {
       "get": {
-        "operationId": "Get",
+        "operationId": "GoMs_Get",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/gomsGoMsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
             }
           }
         },
@@ -75,12 +99,18 @@
         ]
       },
       "delete": {
-        "operationId": "Delete",
+        "operationId": "GoMs_Delete",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/gomsGoMsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
             }
           }
         },
@@ -97,12 +127,18 @@
         ]
       },
       "patch": {
-        "operationId": "Update",
+        "operationId": "GoMs_Update",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/gomsGoMsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
             }
           }
         },
@@ -118,7 +154,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/gomsGoMsEntityRequest"
+              "$ref": "#/definitions/GoMsUpdateBody"
             }
           }
         ],
@@ -129,19 +165,42 @@
     }
   },
   "definitions": {
-    "gomsGoMsEntityRequest": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      }
+    "GoMsUpdateBody": {
+      "type": "object"
     },
     "gomsGoMsResponse": {
       "type": "object",
       "properties": {
-        "Message": {
+        "message": {
           "type": "string"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
         }
       }
     }

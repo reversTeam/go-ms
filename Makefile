@@ -13,18 +13,18 @@ protogen:
 	for proto in services/**/protobuf/*.proto ; do \
 		protoc -I/usr/local/include -I. \
 		  -I${GOPATH}/src \
-		  -I${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
-		  --go_out=plugins=grpc:. \
+		  -I/Users/triviere/lab/googleapis \
+		  --go_out=. \
 		$$proto ; \
 		protoc -I/usr/local/include -I. \
 		  -I${GOPATH}/src \
-		  -I${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+		  -I/Users/triviere/lab/googleapis \
 		  --grpc-gateway_out=logtostderr=true:. \
 		$$proto ; \
 		protoc -I/usr/local/include -I. \
 		  -I${GOPATH}/src \
-		  -I${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
-		  --swagger_out=logtostderr=true:. \
+		  -I/Users/triviere/lab/googleapis \
+		  --openapiv2_out=logtostderr=true:. \
 		$$proto ; \
 	done
 
