@@ -10,6 +10,7 @@ type Config struct {
 	Grpc     *ServerConfig            `yaml:"grpc,omitempty"`
 	Http     *HttpServerConfig        `yaml:"http,omitempty"`
 	Exporter ExporterConfig           `yaml:"exporter,omitempty"`
+	Jaeger   JaegerConfig             `yaml:"jaeger,omitempty"`
 	Services map[string]ServiceConfig `yaml:"services"`
 }
 
@@ -32,9 +33,23 @@ type ExporterConfig struct {
 }
 
 type ServiceConfig struct {
-	Grpc   bool                   `yaml:"grpc"`
 	Http   bool                   `yaml:"http"`
 	Config map[string]interface{} `yaml:"config,omitempty"`
+}
+
+type JaegerConfig struct {
+	Name     string `yaml:"name"`
+	Unsecure bool   `yaml:"unsecure,omitempty"`
+	Mode     string `yaml:"mode"`
+	Host     string `yaml:"host,omitempty"`
+	Port     int    `yaml:"port,omitempty"`
+	Sampler  struct {
+		Type  string `yaml:"type,omitempty"`
+		Param int    `yaml:"param,omitempty"`
+	} `yaml:"sampler,omitempty"`
+	Reporter struct {
+		LogSpans bool `yaml:"log-spans,omitempty"`
+	} `yaml:"reporter,omitempty"`
 }
 
 func NewConfig(filename string) (*Config, error) {

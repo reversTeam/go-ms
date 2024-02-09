@@ -2,15 +2,15 @@ package core
 
 import (
 	"fmt"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 	"log"
 	"net"
+
+	"google.golang.org/grpc"
 )
 
 // Define the GRPC Server Struct
 type GoMsGrpcServer struct {
-	Ctx      context.Context
+	Ctx      *Context
 	Host     string
 	Port     int
 	Server   *grpc.Server
@@ -22,12 +22,17 @@ type GoMsGrpcServer struct {
 }
 
 // Create a grpc server
-func NewGoMsGrpcServer(ctx context.Context, host string, port int, opts []grpc.DialOption) *GoMsGrpcServer {
+func NewGoMsGrpcServer(ctx *Context, host string, port int, opts []grpc.DialOption) *GoMsGrpcServer {
+	options := []grpc.ServerOption{
+		grpc.UnaryInterceptor(loggingMiddleware),
+	}
+	grpcServer := grpc.NewServer(options...)
+
 	return &GoMsGrpcServer{
 		Ctx:      ctx,
 		Host:     host,
 		Port:     port,
-		Server:   grpc.NewServer(),
+		Server:   grpcServer,
 		State:    Init,
 		listener: nil,
 		services: make([]GoMsServiceInterface, 0),

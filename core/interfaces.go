@@ -12,6 +12,8 @@ type GoMsServiceInterface interface {
 
 	RegisterHttp(*GoMsHttpServer, string) error
 	RegisterGrpc(*GoMsGrpcServer)
+
+	Log(message string)
 }
 
 // Defition of ServerGracefulStopableInterface for http & grpc server graceful stop

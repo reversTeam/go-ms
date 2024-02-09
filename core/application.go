@@ -1,29 +1,30 @@
 package core
 
 import (
-	"context"
 	"log"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Application struct {
-	ctx                 context.Context
-	config              Config
+	ctx    *Context
+	config Config
+	// Jeager              *Jeager
 	grpcServer          *GoMsGrpcServer
 	httpServer          *GoMsHttpServer
 	Services            map[string]GoMsServiceInterface
-	servicesConstructor map[string]func(string, ServiceConfig) GoMsServiceInterface
+	servicesConstructor map[string]func(*Context, string, ServiceConfig) GoMsServiceInterface
 }
 
-func NewApplication(config *Config, services map[string]func(string, ServiceConfig) GoMsServiceInterface) *Application {
-	ctx := context.Background()
+func NewApplication(config *Config, services map[string]func(*Context, string, ServiceConfig) GoMsServiceInterface) *Application {
+	ctx := NewContext(config.Jaeger)
 	var grpcServer *GoMsGrpcServer = nil
 	var httpServer *GoMsHttpServer = nil
 
 	if config.Grpc != nil {
 		opts := []grpc.DialOption{
-			grpc.WithInsecure(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		}
 		grpcServer = NewGoMsGrpcServer(ctx, config.Grpc.Host, config.Grpc.Port, opts)
 	}
@@ -33,12 +34,13 @@ func NewApplication(config *Config, services map[string]func(string, ServiceConf
 	}
 
 	app := &Application{
-		ctx:                 ctx,
-		config:              *config,
+		ctx:    ctx,
+		config: *config,
+		// Jeager:              NewJeager(ctx, config.Jaeger),
 		grpcServer:          grpcServer,
 		httpServer:          httpServer,
 		Services:            make(map[string]GoMsServiceInterface),
-		servicesConstructor: make(map[string]func(string, ServiceConfig) GoMsServiceInterface),
+		servicesConstructor: make(map[string]func(*Context, string, ServiceConfig) GoMsServiceInterface),
 	}
 
 	app.RegisterServices(services)
@@ -49,7 +51,7 @@ func NewApplication(config *Config, services map[string]func(string, ServiceConf
 	return app
 }
 
-func NewApplicationFromConfigFile(configPath string, services map[string]func(string, ServiceConfig) GoMsServiceInterface) *Application {
+func NewApplicationFromConfigFile(configPath string, services map[string]func(*Context, string, ServiceConfig) GoMsServiceInterface) *Application {
 	config, err := NewConfig(configPath)
 	if err != nil {
 		log.Panic(err)
@@ -61,37 +63,36 @@ func NewApplicationFromConfigFile(configPath string, services map[string]func(st
 func (o *Application) Start() {
 	done := CatchStopSignals()
 
-	err := o.httpServer.Start()
+	err := o.grpcServer.Start()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = o.grpcServer.Start()
+	err = o.httpServer.Start()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	<-done
+	o.ctx.Jeager.GracefullFunc()
 }
 
-func (o *Application) RegisterServices(services map[string]func(string, ServiceConfig) GoMsServiceInterface) {
+func (o *Application) RegisterServices(services map[string]func(*Context, string, ServiceConfig) GoMsServiceInterface) {
 	for serviceName, serviceFunc := range services {
 		o.RegisterService(serviceName, serviceFunc)
 	}
 }
 
-func (o *Application) RegisterService(name string, constructor func(string, ServiceConfig) GoMsServiceInterface) {
+func (o *Application) RegisterService(name string, constructor func(*Context, string, ServiceConfig) GoMsServiceInterface) {
 	o.servicesConstructor[name] = constructor
 	o.Services[name] = o.InitService(name, o.config.Services[name])
 }
 
 func (o *Application) InitService(name string, config ServiceConfig) GoMsServiceInterface {
 	if constructor, ok := o.servicesConstructor[name]; ok {
-		service := constructor(name, config)
+		service := constructor(o.ctx, name, config)
 
-		if config.Grpc == true {
-			o.grpcServer.AddService(service)
-		}
+		o.grpcServer.AddService(service)
 
 		if config.Http == true {
 			o.httpServer.AddService(service)
@@ -102,9 +103,9 @@ func (o *Application) InitService(name string, config ServiceConfig) GoMsService
 	return nil
 }
 
-func RegisterServiceMap[T GoMsServiceInterface](constructor func(string, ServiceConfig) T) func(string, ServiceConfig) T {
-	return func(name string, config ServiceConfig) T {
+func RegisterServiceMap[T GoMsServiceInterface](constructor func(*Context, string, ServiceConfig) T) func(*Context, string, ServiceConfig) T {
+	return func(ctx *Context, name string, config ServiceConfig) T {
 		log.Printf("[%s] %v", name, config)
-		return constructor(name, config)
+		return constructor(ctx, name, config)
 	}
 }
