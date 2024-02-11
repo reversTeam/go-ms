@@ -7,11 +7,13 @@ import (
 )
 
 type Config struct {
-	Grpc     *ServerConfig            `yaml:"grpc,omitempty"`
-	Http     *HttpServerConfig        `yaml:"http,omitempty"`
-	Exporter ExporterConfig           `yaml:"exporter,omitempty"`
-	Jaeger   JaegerConfig             `yaml:"jaeger,omitempty"`
-	Services map[string]ServiceConfig `yaml:"services"`
+	Name       string                   `yaml:"name"`
+	Grpc       *ServerConfig            `yaml:"grpc,omitempty"`
+	Http       *HttpServerConfig        `yaml:"http,omitempty"`
+	Exporter   ExporterConfig           `yaml:"exporter,omitempty"`
+	Jaeger     JaegerConfig             `yaml:"jaeger,omitempty"`
+	Services   map[string]ServiceConfig `yaml:"services"`
+	Middleware []string                 `yaml:"middlewares,omitempty"`
 }
 
 type ServerConfig struct {
@@ -64,7 +66,6 @@ func NewConfig(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	// Set default values for HttpServerConfig if they are not provided
 	if config.Http != nil {
 		if config.Http.ReadTimeout == 0 {
 			config.Http.ReadTimeout = 60

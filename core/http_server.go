@@ -4,16 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc/metadata"
 )
 
 // Definition of GoMsHttpServer struct
@@ -28,26 +21,6 @@ type GoMsHttpServer struct {
 	Mux      *runtime.ServeMux
 	services []GoMsServiceInterface
 	Exporter *Exporter
-}
-
-func forwardHeaders(ctx context.Context, req *http.Request) metadata.MD {
-	md := metadata.MD{}
-	excludeHeaders := map[string]bool{
-		"connection":        true,
-		"keep-alive":        true,
-		"proxy-connection":  true,
-		"transfer-encoding": true,
-		"upgrade":           true,
-	}
-
-	for name, values := range req.Header {
-		if _, ok := excludeHeaders[strings.ToLower(name)]; !ok {
-			for _, value := range values {
-				md.Append(strings.ToLower(name), value)
-			}
-		}
-	}
-	return md
 }
 
 // Init GoMsHttpServer
@@ -83,29 +56,8 @@ func (o *GoMsHttpServer) SetExporter(exporter *Exporter) {
 	o.Exporter = exporter
 }
 
-// // TODO : middleware example trace
-func (o *GoMsHttpServer) trace(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		method := r.Method
-		path := r.URL.Path
-		host := r.Host
-
-		tracer := otel.Tracer("http")
-		newCtx, span := tracer.Start(r.Context(), fmt.Sprintf("[%s]%s:%s", method, host, path), trace.WithSpanKind(trace.SpanKindServer))
-		span.SetAttributes(attribute.String("http.method", method))
-		span.SetAttributes(attribute.String("http.path", path))
-		span.SetAttributes(attribute.String("http.host", host))
-		otel.GetTextMapPropagator().Inject(newCtx, propagation.HeaderCarrier(r.Header))
-		defer span.End()
-		r = r.WithContext(newCtx)
-
-		rwh := NewResponseWriterHandler(w)
-		next.ServeHTTP(rwh, r)
-	})
-}
-
 func (o *GoMsHttpServer) Handle(path string, mux *runtime.ServeMux) {
-	o.mux.Handle(path, o.trace(mux))
+	o.mux.Handle(path, tracingMiddleware(mux))
 }
 
 // Register service on the http server

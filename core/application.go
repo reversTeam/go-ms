@@ -8,17 +8,16 @@ import (
 )
 
 type Application struct {
-	ctx    *Context
-	config Config
-	// Jeager              *Jeager
+	ctx                 *Context
+	config              Config
 	grpcServer          *GoMsGrpcServer
 	httpServer          *GoMsHttpServer
 	Services            map[string]GoMsServiceInterface
-	servicesConstructor map[string]func(*Context, string, ServiceConfig) GoMsServiceInterface
+	servicesConstructor map[string]GoMsServiceFunc
 }
 
-func NewApplication(config *Config, services map[string]func(*Context, string, ServiceConfig) GoMsServiceInterface) *Application {
-	ctx := NewContext(config.Jaeger)
+func NewApplication(config *Config, services map[string]GoMsServiceFunc, middlewares map[string]GoMsMiddlewareFunc) *Application {
+	ctx := NewContext(config.Name, config.Jaeger)
 	var grpcServer *GoMsGrpcServer = nil
 	var httpServer *GoMsHttpServer = nil
 
@@ -26,7 +25,7 @@ func NewApplication(config *Config, services map[string]func(*Context, string, S
 		opts := []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		}
-		grpcServer = NewGoMsGrpcServer(ctx, config.Grpc.Host, config.Grpc.Port, opts)
+		grpcServer = NewGoMsGrpcServer(ctx, config.Grpc.Host, config.Grpc.Port, opts, middlewares)
 	}
 
 	if config.Http != nil {
@@ -34,13 +33,12 @@ func NewApplication(config *Config, services map[string]func(*Context, string, S
 	}
 
 	app := &Application{
-		ctx:    ctx,
-		config: *config,
-		// Jeager:              NewJeager(ctx, config.Jaeger),
+		ctx:                 ctx,
+		config:              *config,
 		grpcServer:          grpcServer,
 		httpServer:          httpServer,
 		Services:            make(map[string]GoMsServiceInterface),
-		servicesConstructor: make(map[string]func(*Context, string, ServiceConfig) GoMsServiceInterface),
+		servicesConstructor: make(map[string]GoMsServiceFunc),
 	}
 
 	app.RegisterServices(services)
@@ -51,13 +49,13 @@ func NewApplication(config *Config, services map[string]func(*Context, string, S
 	return app
 }
 
-func NewApplicationFromConfigFile(configPath string, services map[string]func(*Context, string, ServiceConfig) GoMsServiceInterface) *Application {
+func NewApplicationFromConfigFile(configPath string, services map[string]GoMsServiceFunc, middlewares map[string]GoMsMiddlewareFunc) *Application {
 	config, err := NewConfig(configPath)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	return NewApplication(config, services)
+	return NewApplication(config, services, middlewares)
 }
 
 func (o *Application) Start() {
@@ -77,13 +75,13 @@ func (o *Application) Start() {
 	o.ctx.Jeager.GracefullFunc()
 }
 
-func (o *Application) RegisterServices(services map[string]func(*Context, string, ServiceConfig) GoMsServiceInterface) {
+func (o *Application) RegisterServices(services map[string]GoMsServiceFunc) {
 	for serviceName, serviceFunc := range services {
 		o.RegisterService(serviceName, serviceFunc)
 	}
 }
 
-func (o *Application) RegisterService(name string, constructor func(*Context, string, ServiceConfig) GoMsServiceInterface) {
+func (o *Application) RegisterService(name string, constructor GoMsServiceFunc) {
 	o.servicesConstructor[name] = constructor
 	o.Services[name] = o.InitService(name, o.config.Services[name])
 }
