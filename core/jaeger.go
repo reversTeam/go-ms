@@ -22,7 +22,7 @@ type Jeager struct {
 	GracefullFunc func()
 }
 
-func NewJeager(ctx context.Context, config JaegerConfig) *Jeager {
+func NewJeager(ctx context.Context, name string, config JaegerConfig) *Jeager {
 	endpoint := fmt.Sprintf("%s:%d", config.Host, config.Port)
 	var exporter sdktrace.SpanExporter
 	var err error
@@ -52,7 +52,7 @@ func NewJeager(ctx context.Context, config JaegerConfig) *Jeager {
 		log.Fatalf("Error creating OTLP exporter: %v", err)
 	}
 
-	serviceNameAttr := attribute.String("service.name", config.Name)
+	serviceNameAttr := attribute.String("service.name", name)
 	attrs := []attribute.KeyValue{serviceNameAttr}
 	resource := resource.NewWithAttributes("service.name", attrs...)
 

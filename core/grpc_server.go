@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -22,10 +23,13 @@ type GoMsGrpcServer struct {
 }
 
 // Create a grpc server
-func NewGoMsGrpcServer(ctx *Context, host string, port int, opts []grpc.DialOption) *GoMsGrpcServer {
+func NewGoMsGrpcServer(ctx *Context, host string, port int, opts []grpc.DialOption, middlewares map[string]GoMsMiddlewareFunc) *GoMsGrpcServer {
 	options := []grpc.ServerOption{
-		grpc.UnaryInterceptor(loggingMiddleware),
+		grpc.UnaryInterceptor(chainInterceptors(loggingMiddleware, func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+			return applyDynamicMiddleware(ctx, req, info, handler, middlewares)
+		})),
 	}
+
 	grpcServer := grpc.NewServer(options...)
 
 	return &GoMsGrpcServer{
