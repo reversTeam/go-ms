@@ -20,12 +20,12 @@ type GoMsHttpServer struct {
 	mux      *http.ServeMux
 	Mux      *runtime.ServeMux
 	services []GoMsServiceInterface
-	Exporter *Exporter
+	// Exporter *Exporter
 }
 
 // Init GoMsHttpServer
-func NewGoMsHttpServer(ctx *Context, host string, port int, grpcServer *GoMsGrpcServer) *GoMsHttpServer {
-	uri := fmt.Sprintf("%s:%d", host, port)
+func NewGoMsHttpServer(ctx *Context, config *HttpServerConfig, grpcServer *GoMsGrpcServer) *GoMsHttpServer {
+	uri := fmt.Sprintf("%s:%d", config.Host, config.Port)
 	muxOpts := []runtime.ServeMuxOption{
 		runtime.WithMetadata(forwardHeaders),
 	}
@@ -34,27 +34,27 @@ func NewGoMsHttpServer(ctx *Context, host string, port int, grpcServer *GoMsGrpc
 	return &GoMsHttpServer{
 		Ctx:  ctx,
 		Grpc: grpcServer,
-		Host: host,
-		Port: port,
+		Host: config.Host,
+		Port: config.Port,
 		Server: &http.Server{
 			Addr:           uri,
 			Handler:        mux,
-			ReadTimeout:    10 * time.Second,
-			WriteTimeout:   10 * time.Second,
+			ReadTimeout:    time.Duration(config.ReadTimeout) * time.Second,
+			WriteTimeout:   time.Duration(config.WriteTimeout) * time.Second,
 			MaxHeaderBytes: 1 << 20,
 		},
 		State:    Init,
 		mux:      mux,
 		Mux:      runtime.NewServeMux(muxOpts...),
 		services: make([]GoMsServiceInterface, 0),
-		Exporter: nil,
+		// Exporter: nil,
 	}
 }
 
 // Set the exporter
-func (o *GoMsHttpServer) SetExporter(exporter *Exporter) {
-	o.Exporter = exporter
-}
+// func (o *GoMsHttpServer) SetExporter(exporter *Exporter) {
+// 	o.Exporter = exporter
+// }
 
 func (o *GoMsHttpServer) Handle(path string, mux *runtime.ServeMux) {
 	o.mux.Handle(path, tracingMiddleware(mux))

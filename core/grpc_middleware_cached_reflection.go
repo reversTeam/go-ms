@@ -78,22 +78,30 @@ func convertReflectValueToMap(value reflect.Value) map[string][]string {
 }
 
 func extractMiddlewares(v reflect.Value) (reflect.Value, bool) {
-	var findMiddlewares func(reflect.Value) (reflect.Value, bool)
-	findMiddlewares = func(value reflect.Value) (reflect.Value, bool) {
+	var findMiddlewares func(reflect.Value, map[uintptr]bool) (reflect.Value, bool)
+	visited := make(map[uintptr]bool)
+
+	findMiddlewares = func(value reflect.Value, visited map[uintptr]bool) (reflect.Value, bool) {
 		if value.Kind() == reflect.Ptr && !value.IsNil() {
+			ptr := value.Pointer()
+			if visited[ptr] {
+				return reflect.Value{}, false
+			}
+			visited[ptr] = true
 			value = value.Elem()
 		}
+
 		if value.Kind() == reflect.Struct {
 			for i := 0; i < value.NumField(); i++ {
 				field := value.Field(i)
 
-				if field.Kind() == reflect.Struct || (field.Kind() == reflect.Ptr && field.Elem().Kind() == reflect.Struct) {
-					if result, found := findMiddlewares(field); found {
+				if field.Kind() == reflect.Struct || (field.Kind() == reflect.Ptr && !field.IsNil() && field.Elem().Kind() == reflect.Struct) {
+					if result, found := findMiddlewares(field, visited); found {
 						return result, true
 					}
 				} else if field.Kind() == reflect.Map {
 					for _, key := range field.MapKeys() {
-						if key.String() == "middlewares" {
+						if key.Kind() == reflect.String && key.String() == "middlewares" {
 							return field.MapIndex(key), true
 						}
 					}
@@ -103,5 +111,5 @@ func extractMiddlewares(v reflect.Value) (reflect.Value, bool) {
 		return reflect.Value{}, false
 	}
 
-	return findMiddlewares(v)
+	return findMiddlewares(v, visited)
 }
