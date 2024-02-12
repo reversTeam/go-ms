@@ -19,7 +19,7 @@ type GoMsGrpcServer struct {
 	listener net.Listener
 	services []GoMsServiceInterface
 	Opts     []grpc.DialOption
-	// Exporter *Exporter
+	Exporter *Exporter
 }
 
 // Create a grpc server
@@ -41,7 +41,7 @@ func NewGoMsGrpcServer(ctx *Context, config *ServerConfig, opts []grpc.DialOptio
 		listener: nil,
 		services: make([]GoMsServiceInterface, 0),
 		Opts:     opts,
-		// Exporter: nil,
+		Exporter: nil,
 	}
 }
 
@@ -59,9 +59,9 @@ func (o *GoMsGrpcServer) Listen() (err error) {
 }
 
 // Set the exporter
-// func (o *GoMsGrpcServer) SetExporter(exporter *Exporter) {
-// 	o.Exporter = exporter
-// }
+func (o *GoMsGrpcServer) SetExporter(exporter *Exporter) {
+	o.Exporter = exporter
+}
 
 // Register service on the grpc server
 func (o *GoMsGrpcServer) Register(service GoMsServiceInterface) {
