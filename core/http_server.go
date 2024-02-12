@@ -20,7 +20,7 @@ type GoMsHttpServer struct {
 	mux      *http.ServeMux
 	Mux      *runtime.ServeMux
 	services []GoMsServiceInterface
-	// Exporter *Exporter
+	Exporter *Exporter
 }
 
 // Init GoMsHttpServer
@@ -47,14 +47,14 @@ func NewGoMsHttpServer(ctx *Context, config *HttpServerConfig, grpcServer *GoMsG
 		mux:      mux,
 		Mux:      runtime.NewServeMux(muxOpts...),
 		services: make([]GoMsServiceInterface, 0),
-		// Exporter: nil,
+		Exporter: nil,
 	}
 }
 
 // Set the exporter
-// func (o *GoMsHttpServer) SetExporter(exporter *Exporter) {
-// 	o.Exporter = exporter
-// }
+func (o *GoMsHttpServer) SetExporter(exporter *Exporter) {
+	o.Exporter = exporter
+}
 
 func (o *GoMsHttpServer) Handle(path string, mux *runtime.ServeMux) {
 	o.mux.Handle(path, tracingMiddleware(mux))

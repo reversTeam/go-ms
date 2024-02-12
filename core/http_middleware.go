@@ -27,7 +27,7 @@ func tracingMiddleware(next http.Handler) http.Handler {
 		otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(r.Header))
 		w.Header().Set("x-request-id", span.SpanContext().SpanID().String())
 
-		rwh := NewResponseWriterHandler(w, span)
+		rwh := NewResponseWriterHandler(w)
 		defer rwh.Finalize()
 
 		r = r.WithContext(ctx)

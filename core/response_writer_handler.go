@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-
-	"go.opentelemetry.io/otel/trace"
 )
 
 type ResponseWriterHandler struct {
@@ -17,16 +15,14 @@ type ResponseWriterHandler struct {
 	buffer         bytes.Buffer
 	isStream       bool
 	entities       []interface{}
-	span           trace.Span
 }
 
-func NewResponseWriterHandler(w http.ResponseWriter, span trace.Span) *ResponseWriterHandler {
+func NewResponseWriterHandler(w http.ResponseWriter) *ResponseWriterHandler {
 	return &ResponseWriterHandler{
 		ResponseWriter: w,
 		StatusCode:     http.StatusOK,
 		isStream:       false,
 		entities:       make([]interface{}, 0),
-		span:           span,
 	}
 }
 
