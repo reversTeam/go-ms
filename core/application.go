@@ -25,11 +25,11 @@ func NewApplication(config *Config, services map[string]GoMsServiceFunc, middlew
 		opts := []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		}
-		grpcServer = NewGoMsGrpcServer(ctx, config.Grpc.Host, config.Grpc.Port, opts, middlewares)
+		grpcServer = NewGoMsGrpcServer(ctx, config.Grpc, opts, middlewares)
 	}
 
 	if config.Http != nil {
-		httpServer = NewGoMsHttpServer(ctx, config.Http.Host, config.Http.Port, grpcServer)
+		httpServer = NewGoMsHttpServer(ctx, config.Http, grpcServer)
 	}
 
 	app := &Application{

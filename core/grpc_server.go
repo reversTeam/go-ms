@@ -19,11 +19,11 @@ type GoMsGrpcServer struct {
 	listener net.Listener
 	services []GoMsServiceInterface
 	Opts     []grpc.DialOption
-	Exporter *Exporter
+	// Exporter *Exporter
 }
 
 // Create a grpc server
-func NewGoMsGrpcServer(ctx *Context, host string, port int, opts []grpc.DialOption, middlewares map[string]GoMsMiddlewareFunc) *GoMsGrpcServer {
+func NewGoMsGrpcServer(ctx *Context, config *ServerConfig, opts []grpc.DialOption, middlewares map[string]GoMsMiddlewareFunc) *GoMsGrpcServer {
 	options := []grpc.ServerOption{
 		grpc.UnaryInterceptor(chainInterceptors(loggingMiddleware, func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 			return applyDynamicMiddleware(ctx, req, info, handler, middlewares)
@@ -34,14 +34,14 @@ func NewGoMsGrpcServer(ctx *Context, host string, port int, opts []grpc.DialOpti
 
 	return &GoMsGrpcServer{
 		Ctx:      ctx,
-		Host:     host,
-		Port:     port,
+		Host:     config.Host,
+		Port:     config.Port,
 		Server:   grpcServer,
 		State:    Init,
 		listener: nil,
 		services: make([]GoMsServiceInterface, 0),
 		Opts:     opts,
-		Exporter: nil,
+		// Exporter: nil,
 	}
 }
 
@@ -59,9 +59,9 @@ func (o *GoMsGrpcServer) Listen() (err error) {
 }
 
 // Set the exporter
-func (o *GoMsGrpcServer) SetExporter(exporter *Exporter) {
-	o.Exporter = exporter
-}
+// func (o *GoMsGrpcServer) SetExporter(exporter *Exporter) {
+// 	o.Exporter = exporter
+// }
 
 // Register service on the grpc server
 func (o *GoMsGrpcServer) Register(service GoMsServiceInterface) {

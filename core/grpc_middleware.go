@@ -35,13 +35,13 @@ func loggingMiddleware(ctx context.Context, req interface{}, info *grpc.UnarySer
 }
 
 func applyDynamicMiddleware(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler, middlewareFnMap map[string]GoMsMiddlewareFunc) (interface{}, error) {
-	ctx, parentSpan := Trace(ctx, "middlewares", "apply-dynamic-middlewares")
-	defer parentSpan.End()
+	middlewaresCtx, middlewaresSpan := Trace(ctx, "middlewares", "apply-dynamic-middlewares")
 
 	middlewares := getCachedMiddlewareByServiceEndpoint(info)
-	currentHandler := handler
+	var err error
+	var res interface{} = req
 
-	for i := len(middlewares) - 1; i >= 0; i-- {
+	for i := 0; i < len(middlewares); i++ {
 		m := middlewares[i]
 
 		mFn, ok := middlewareFnMap[m]
@@ -49,13 +49,23 @@ func applyDynamicMiddleware(ctx context.Context, req interface{}, info *grpc.Una
 			return nil, fmt.Errorf("middleware %s does not exist", m)
 		}
 
-		nextHandler := currentHandler
-		currentHandler = func(mdCtx context.Context, currentReq interface{}) (interface{}, error) {
-			_, middlewareSpan := Trace(mdCtx, "middleware", m)
-			defer middlewareSpan.End()
-			return mFn(mdCtx, currentReq, info, nextHandler)
+		nextHandler := func(innerCtx context.Context, innerReq interface{}) (interface{}, error) {
+			return res, err
+		}
+
+		_, span := Trace(middlewaresCtx, "middleware", m)
+		res, err = mFn(ctx, res, info, nextHandler)
+		span.End()
+
+		if err != nil {
+			break
 		}
 	}
+	middlewaresSpan.End()
 
-	return currentHandler(ctx, req)
+	if err == nil {
+		res, err = handler(ctx, res)
+	}
+
+	return res, err
 }
