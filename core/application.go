@@ -16,7 +16,7 @@ type Application struct {
 	servicesConstructor map[string]GoMsServiceFunc
 }
 
-func NewApplication(config *Config, services map[string]GoMsServiceFunc, middlewares map[string]GoMsMiddlewareFunc) *Application {
+func NewApplication(config *Config, services map[string]GoMsServiceFunc, middlewares map[string]Middleware) *Application {
 	ctx := NewContext(config.Name, config.Jaeger)
 	var grpcServer *GoMsGrpcServer = nil
 	var httpServer *GoMsHttpServer = nil
@@ -49,7 +49,7 @@ func NewApplication(config *Config, services map[string]GoMsServiceFunc, middlew
 	return app
 }
 
-func NewApplicationFromConfigFile(configPath string, services map[string]GoMsServiceFunc, middlewares map[string]GoMsMiddlewareFunc) *Application {
+func NewApplicationFromConfigFile(configPath string, services map[string]GoMsServiceFunc, middlewares map[string]Middleware) *Application {
 	config, err := NewConfig(configPath)
 	if err != nil {
 		log.Panic(err)

@@ -1,5 +1,11 @@
 package core
 
+import (
+	"context"
+
+	"google.golang.org/grpc"
+)
+
 type GoMsHandlerInterface interface {
 	RegisterHttp(*GoMsHttpServer, GoMsServiceInterface) error
 	RegisterGrpc(*GoMsGrpcServer, GoMsServiceInterface)
@@ -13,6 +19,8 @@ type GoMsServiceInterface interface {
 	RegisterHttp(*GoMsHttpServer, string) error
 	RegisterGrpc(*GoMsGrpcServer)
 
+	GetMiddlewaresConf() map[string][]string
+
 	Log(message string)
 }
 
@@ -24,4 +32,10 @@ type GoMsServerGracefulStopableInterface interface {
 // Definition of GoMsMetricsInterface
 type GoMsMetricsInterface interface {
 	GetServiceName() string
+}
+
+type Middleware interface {
+	Apply(ctx context.Context, req interface{}) (context.Context, interface{}, error)
+	Unary() grpc.UnaryServerInterceptor
+	Stream() grpc.StreamServerInterceptor
 }

@@ -11,37 +11,33 @@ import (
 
 // Define the GRPC Server Struct
 type GoMsGrpcServer struct {
-	Ctx      *Context
-	Host     string
-	Port     int
-	Server   *grpc.Server
-	State    GoMsServerState
-	listener net.Listener
-	services []GoMsServiceInterface
-	Opts     []grpc.DialOption
-	Exporter *Exporter
+	Ctx             *Context
+	Host            string
+	Port            int
+	Server          *grpc.Server
+	State           GoMsServerState
+	listener        net.Listener
+	services        []GoMsServiceInterface
+	Opts            []grpc.DialOption
+	Exporter        *Exporter
+	Middlewares     map[string]Middleware
+	MiddlewaresConf map[string]map[string][]string
 }
 
 // Create a grpc server
-func NewGoMsGrpcServer(ctx *Context, config *ServerConfig, opts []grpc.DialOption, middlewares map[string]GoMsMiddlewareFunc) *GoMsGrpcServer {
-	options := []grpc.ServerOption{
-		grpc.UnaryInterceptor(chainInterceptors(loggingMiddleware, func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-			return applyDynamicMiddleware(ctx, req, info, handler, middlewares)
-		})),
-	}
-
-	grpcServer := grpc.NewServer(options...)
-
+func NewGoMsGrpcServer(appCtx *Context, config *ServerConfig, opts []grpc.DialOption, middlewares map[string]Middleware) *GoMsGrpcServer {
 	return &GoMsGrpcServer{
-		Ctx:      ctx,
-		Host:     config.Host,
-		Port:     config.Port,
-		Server:   grpcServer,
-		State:    Init,
-		listener: nil,
-		services: make([]GoMsServiceInterface, 0),
-		Opts:     opts,
-		Exporter: nil,
+		Ctx:             appCtx,
+		Host:            config.Host,
+		Port:            config.Port,
+		Server:          nil,
+		State:           Init,
+		listener:        nil,
+		services:        make([]GoMsServiceInterface, 0),
+		Opts:            opts,
+		Exporter:        nil,
+		Middlewares:     middlewares,
+		MiddlewaresConf: make(map[string]map[string][]string),
 	}
 }
 
@@ -71,6 +67,7 @@ func (o *GoMsGrpcServer) Register(service GoMsServiceInterface) {
 // Add service to the local service array, need for register later
 func (o *GoMsGrpcServer) AddService(service GoMsServiceInterface) {
 	o.services = append(o.services, service)
+	o.MiddlewaresConf[service.GetName()] = service.GetMiddlewaresConf()
 }
 
 // Register services to the grpc server
@@ -81,8 +78,23 @@ func (o *GoMsGrpcServer) startServices() {
 	}
 }
 
+func (o *GoMsGrpcServer) InitServer() {
+	options := []grpc.ServerOption{
+		grpc.UnaryInterceptor(chainInterceptors(loggingMiddleware, func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+			return applyMiddleware(ctx, nil, req, info, handler, o.Middlewares, o.MiddlewaresConf)
+		})),
+		grpc.StreamInterceptor(chainStreamInterceptors(loggingStreamMiddleware, func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+			_, e := applyMiddleware(stream.Context(), srv, stream, info, handler, o.Middlewares, o.MiddlewaresConf)
+			return e
+		})),
+	}
+
+	o.Server = grpc.NewServer(options...)
+}
+
 // Start a grpc server ready for handle connexion
 func (o *GoMsGrpcServer) Start() error {
+	o.InitServer()
 	err := o.Listen()
 	if err != nil {
 		return err
