@@ -44,6 +44,8 @@ func NewJeager(ctx context.Context, name string, config JaegerConfig) *Jeager {
 			opts = append(opts, otlptracehttp.WithInsecure())
 		}
 		exporter, err = otlptracehttp.New(ctx, opts...)
+	} else if config.Mode == "mock" {
+		return &Jeager{}
 	} else {
 		log.Fatal("Jaeger mode not implemented")
 	}
