@@ -57,7 +57,7 @@ func (rw *ResponseWriterHandler) emitBufferedData() {
 		return
 	}
 
-	rw.buffer = *bytes.NewBuffer([]byte(""))
+	rw.buffer.Reset()
 
 	var result []json.RawMessage
 
