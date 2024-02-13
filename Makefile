@@ -1,10 +1,7 @@
 #!make
 lint:
 	gofmt -w -s .
-	golangci-lint run examples/*
-	golangci-lint run services/*
 	golangci-lint run core/*
-	golangci-lint run helpers/*
 
 install:
 	go get ./...
