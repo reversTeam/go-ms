@@ -92,7 +92,7 @@ func (o *Application) InitService(name string, config ServiceConfig) GoMsService
 
 		o.grpcServer.AddService(service)
 
-		if config.Http == true {
+		if config.Http {
 			o.httpServer.AddService(service)
 		}
 

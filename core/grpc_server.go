@@ -47,7 +47,7 @@ func (o *GoMsGrpcServer) Listen() (err error) {
 	o.listener, err = net.Listen("tcp", uri)
 	if err != nil {
 		o.State = Error
-		log.Println("failed to listen: %v", err)
+		log.Printf("failed to listen: %v", err)
 	}
 	o.State = Listen
 	log.Printf("[GRPC] Server listen on %s\n", uri)

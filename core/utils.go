@@ -11,9 +11,7 @@ import (
 func Trace(ctx context.Context, name string, action string) (context.Context, trace.Span) {
 	propagator := otel.GetTextMapPropagator()
 	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		md = metadata.New(nil)
-	} else {
+	if ok {
 		propagator.Inject(ctx, MetadataReaderWriter{md})
 		ctx = propagator.Extract(ctx, MetadataReaderWriter{md})
 	}

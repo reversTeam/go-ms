@@ -30,7 +30,7 @@ func NewJeager(ctx context.Context, name string, config JaegerConfig) *Jeager {
 	// TODO: check grpc implementation
 	if config.Mode == "grpc" {
 		opts := []otlptracegrpc.Option{
-			otlptracegrpc.WithEndpoint(fmt.Sprintf("%s", endpoint)),
+			otlptracegrpc.WithEndpoint(endpoint),
 		}
 		if !config.Unsecure {
 			opts = append(opts, otlptracegrpc.WithInsecure())
@@ -38,7 +38,7 @@ func NewJeager(ctx context.Context, name string, config JaegerConfig) *Jeager {
 		exporter, err = otlptracegrpc.New(ctx, opts...)
 	} else if config.Mode == "http" {
 		opts := []otlptracehttp.Option{
-			otlptracehttp.WithEndpoint(fmt.Sprintf("%s", endpoint)),
+			otlptracehttp.WithEndpoint(endpoint),
 		}
 		if config.Unsecure {
 			opts = append(opts, otlptracehttp.WithInsecure())

@@ -56,7 +56,9 @@ func loggingMiddleware(ctx context.Context, req interface{}, info *grpc.UnarySer
 	spanID := spanContext.SpanID().String()
 	spanIDHeader := metadata.Pairs("request-id", spanID)
 
-	grpc.SendHeader(ctx, spanIDHeader)
+	if err := grpc.SendHeader(ctx, spanIDHeader); err != nil {
+		return nil, err
+	}
 
 	return handler(ctx, req)
 }
@@ -70,7 +72,10 @@ func loggingStreamMiddleware(srv interface{}, stream grpc.ServerStream, info *gr
 	spanID := spanContext.SpanID().String()
 	spanIDHeader := metadata.Pairs("request-id", spanID)
 
-	stream.SendHeader(spanIDHeader)
+	err := stream.SendHeader(spanIDHeader)
+	if err != nil {
+		return err
+	}
 
 	return handler(srv, &wrappedServerStream{ServerStream: stream, ctx: ctx})
 }
@@ -84,42 +89,6 @@ type wrappedServerStream struct {
 func (w *wrappedServerStream) Context() context.Context {
 	return w.ctx
 }
-
-// func applyDynamicMiddleware(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler, middlewareFnMap map[string]GoMsMiddlewareFunc) (interface{}, error) {
-// 	middlewaresCtx, middlewaresSpan := Trace(ctx, "middlewares", "apply-dynamic-middlewares")
-
-// 	cachedMiddlewares := getCachedMiddlewareByServiceEndpoint(info)
-// 	var err error
-// 	var res interface{} = req
-
-// 	for i := 0; i < len(cachedMiddlewares); i++ {
-// 		m := cachedMiddlewares[i]
-
-// 		mFn, ok := middlewareFnMap[m]
-// 		if !ok {
-// 			return nil, fmt.Errorf("middleware %s does not exist", m)
-// 		}
-
-// 		nextHandler := func(innerCtx context.Context, innerReq interface{}) (interface{}, error) {
-// 			return res, err
-// 		}
-
-// 		_, span := Trace(middlewaresCtx, "middleware", m)
-// 		res, err = mFn(ctx, res, info, nextHandler)
-// 		span.End()
-
-// 		if err != nil {
-// 			break
-// 		}
-// 	}
-// 	middlewaresSpan.End()
-
-// 	if err == nil {
-// 		res, err = handler(ctx, res)
-// 	}
-
-// 	return res, err
-// }
 
 func applySelectedMiddleware(ctx context.Context, res interface{}, selectedMiddlewares []string, middlewares map[string]Middleware) (context.Context, interface{}, error) {
 	var err error
@@ -137,7 +106,7 @@ func applySelectedMiddleware(ctx context.Context, res interface{}, selectedMiddl
 }
 
 func applyMiddleware(ctx context.Context, srv interface{}, req interface{}, info interface{}, handler interface{}, middlewares map[string]Middleware, mdConf map[string]map[string][]string) (interface{}, error) {
-	var err error = nil
+	var err error
 	var res interface{} = req
 	middlewaresCtx, middlewaresSpan := Trace(ctx, "middlewares", "apply-middlewares")
 	defer middlewaresSpan.End()
