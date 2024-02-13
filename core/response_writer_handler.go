@@ -13,7 +13,6 @@ type ResponseWriterHandler struct {
 	StatusCode     int
 	headersCleaned bool
 	buffer         bytes.Buffer
-	isStream       bool
 	entities       []interface{}
 }
 
@@ -21,7 +20,6 @@ func NewResponseWriterHandler(w http.ResponseWriter) *ResponseWriterHandler {
 	return &ResponseWriterHandler{
 		ResponseWriter: w,
 		StatusCode:     http.StatusOK,
-		isStream:       false,
 		entities:       make([]interface{}, 0),
 	}
 }
@@ -32,16 +30,11 @@ func (rw *ResponseWriterHandler) WriteHeader(code int) {
 }
 
 func (rw *ResponseWriterHandler) Write(b []byte) (int, error) {
-	if !rw.headersCleaned {
-		rw.headersCleaned = true
-		rw.cleanGrpcHeaders()
-	}
 	return rw.buffer.Write(b)
 }
 
 func (rw *ResponseWriterHandler) Flush() {
 	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
-		rw.isStream = true
 		rw.emitBufferedData()
 		flusher.Flush()
 	}
@@ -61,6 +54,7 @@ func (rw *ResponseWriterHandler) emitBufferedData() {
 		rw.ResponseWriter.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
 	rw.buffer = *bytes.NewBuffer([]byte(""))
 
 	var result []json.RawMessage
@@ -76,9 +70,19 @@ func (rw *ResponseWriterHandler) emitBufferedData() {
 }
 
 func (rw *ResponseWriterHandler) Finalize() {
-	if rw.isStream && len(rw.entities) > 0 {
-		if encodedData, err := json.Marshal(rw.entities); err == nil {
+	isStream := rw.ResponseWriter.Header().Get("Transfer-Encoding") == "chunked"
+	if !rw.headersCleaned {
+		rw.headersCleaned = true
+		rw.cleanGrpcHeaders()
+	}
+
+	if isStream && rw.StatusCode == 200 {
+		if len(rw.entities) == 0 {
+			rw.ResponseWriter.Write([]byte("[]"))
+		} else if encodedData, err := json.Marshal(rw.entities); err == nil {
 			rw.ResponseWriter.Write(encodedData)
+		} else {
+			rw.ResponseWriter.WriteHeader(http.StatusInternalServerError)
 		}
 	} else {
 		rw.ResponseWriter.Write(rw.buffer.Bytes())
