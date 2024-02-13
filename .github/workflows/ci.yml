@@ -1,4 +1,4 @@
-name: GoMs CI
+name: GoMs Tools CI
 
 on:
   push:
@@ -20,13 +20,25 @@ jobs:
         run: sed '/^replace github\.com/d' go.mod > go.mod.ci && mv go.mod.ci go.mod
       - name: Run install
         run: make install
+      - name: Upload project for other jobs
+        uses: actions/upload-artifact@v2
+        with:
+          name: project-files
+          path: |
+            go.mod
+            go.sum
+            **/*
+          if-no-files-found: error
 
   lint:
     name: Lint
     needs: setup
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Download project
+        uses: actions/download-artifact@v2
+        with:
+          name: project-files
       - name: Install golangci-lint
         run: |
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
@@ -40,7 +52,10 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Download project
+        uses: actions/download-artifact@v2
+        with:
+          name: project-files
       - name: Test
         run: go test ./...
 
@@ -49,7 +64,10 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Download project
+        uses: actions/download-artifact@v2
+        with:
+          name: project-files
       - name: Build
         run: go build -v ./...
 
