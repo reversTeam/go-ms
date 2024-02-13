@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"log"
 )
 
 type ResponseWriterHandler struct {
@@ -78,14 +80,20 @@ func (rw *ResponseWriterHandler) Finalize() {
 
 	if isStream && rw.StatusCode == 200 {
 		if len(rw.entities) == 0 {
-			rw.ResponseWriter.Write([]byte("[]"))
+			if _, err := rw.ResponseWriter.Write([]byte("[]")); err != nil {
+				log.Printf("ERROR occurred on Finalize HTTP request: %s\n", err)
+			}
 		} else if encodedData, err := json.Marshal(rw.entities); err == nil {
-			rw.ResponseWriter.Write(encodedData)
+			if _, err = rw.ResponseWriter.Write(encodedData); err != nil {
+				log.Printf("ERROR occurred on Finalize HTTP request: %s\n", err)
+			}
 		} else {
 			rw.ResponseWriter.WriteHeader(http.StatusInternalServerError)
 		}
 	} else {
-		rw.ResponseWriter.Write(rw.buffer.Bytes())
+		if _, err := rw.ResponseWriter.Write(rw.buffer.Bytes()); err != nil {
+			log.Printf("ERROR occurred on Finalize HTTP request: %s\n", err)
+		}
 	}
 }
 
