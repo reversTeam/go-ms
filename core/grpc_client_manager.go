@@ -1,12 +1,16 @@
 package core
 
 import (
+	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 type GrpcClientManager struct {
@@ -106,4 +110,53 @@ func (o *GrpcClientManager) InitConnections() error {
 	o.connections = connections
 	o.muConn.Unlock()
 	return nil
+}
+
+func Call[T any](ctx context.Context, cm *GrpcClientManager, serviceName, methodName string, params any) (T, error) {
+	client, err := cm.GetClient(serviceName)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+
+	clientValue := reflect.ValueOf(client)
+	methodValue := clientValue.MethodByName(methodName)
+
+	if !methodValue.IsValid() {
+		var zero T
+		return zero, fmt.Errorf("method %s was not found for service %s", methodName, serviceName)
+	}
+
+	md, ok := metadata.FromOutgoingContext(ctx)
+	if !ok {
+		md = metadata.New(nil)
+	}
+	propagator := otel.GetTextMapPropagator()
+	propagator.Inject(ctx, MetadataReaderWriter{md})
+
+	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	args := []reflect.Value{
+		reflect.ValueOf(ctx),
+		reflect.ValueOf(params),
+	}
+
+	responseValues := methodValue.Call(args)
+	if len(responseValues) != 2 {
+		var zero T
+		return zero, fmt.Errorf("unexpected response from method %s for service %s", methodName, serviceName)
+	}
+
+	if errValue := responseValues[1].Interface(); errValue != nil {
+		var zero T
+		return zero, errValue.(error)
+	}
+
+	response := responseValues[0].Interface()
+	if response, ok := response.(T); ok {
+		return response, nil
+	} else {
+		var zero T
+		return zero, fmt.Errorf("unable to convert response to expected type for method %s of service %s", methodName, serviceName)
+	}
 }

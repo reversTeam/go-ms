@@ -27,23 +27,19 @@ func chainStreamInterceptors(interceptors ...grpc.StreamServerInterceptor) grpc.
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		var chainHandler grpc.StreamHandler
 
-		// Définition de la fonction chainHandler qui encapsule le flux initial
 		chainHandler = func(srv interface{}, stream grpc.ServerStream) error {
 			return handler(srv, stream)
 		}
 
-		// Itérer sur les intercepteurs en sens inverse
 		for i := len(interceptors) - 1; i >= 0; i-- {
 			currentInterceptor := interceptors[i]
-			nextHandler := chainHandler // Capture de la référence actuelle à la chainHandler pour chaque itération
+			nextHandler := chainHandler
 
-			// Définition de la nouvelle chainHandler qui encapsule l'intercepteur actuel et la chainHandler précédente
 			chainHandler = func(srv interface{}, stream grpc.ServerStream) error {
 				return currentInterceptor(srv, stream, info, nextHandler)
 			}
 		}
 
-		// Appel du flux de gestion final avec la chainHandler finale
 		return chainHandler(srv, stream)
 	}
 }
@@ -108,8 +104,7 @@ func applySelectedMiddleware(ctx context.Context, res interface{}, selectedMiddl
 func applyMiddleware(ctx context.Context, srv interface{}, req interface{}, info interface{}, handler interface{}, middlewares map[string]Middleware, mdConf map[string]map[string][]string) (interface{}, error) {
 	var err error
 	var res interface{} = req
-	middlewaresCtx, middlewaresSpan := Trace(ctx, "middlewares", "apply-middlewares")
-	defer middlewaresSpan.End()
+	middlewaresCtx, middlewaresSpan := Trace(ctx, "gprc", "middlewares")
 
 	switch h := handler.(type) {
 	case grpc.UnaryHandler:
@@ -117,11 +112,15 @@ func applyMiddleware(ctx context.Context, srv interface{}, req interface{}, info
 		service := strings.Split(methodParts[1], ".")[3]
 		methodName := methodParts[len(methodParts)-1]
 
-		ctx, res, err = applySelectedMiddleware(middlewaresCtx, res, mdConf[service][methodName], middlewares)
+		_, res, err = applySelectedMiddleware(middlewaresCtx, res, mdConf[service][methodName], middlewares)
 		if err != nil {
 			return nil, err
 		}
-		return h(ctx, res)
+		middlewaresSpan.End()
+		handleCtx, s := Trace(ctx, "gprc", "handler")
+		i, e := h(handleCtx, res)
+		s.End()
+		return i, e
 	case grpc.StreamHandler:
 		methodParts := strings.Split(info.(*grpc.StreamServerInfo).FullMethod, "/")
 		service := strings.Split(methodParts[1], ".")[3]
@@ -136,9 +135,15 @@ func applyMiddleware(ctx context.Context, srv interface{}, req interface{}, info
 		if !ok {
 			return nil, fmt.Errorf("expected grpc.ServerStream, got %T", req)
 		}
-		err = h(srv, ss)
+		middlewaresSpan.End()
+		handleCtx, s := Trace(ctx, "gprc", "handler")
+		wrappedSS := wrapServerStream(ss, handleCtx)
+
+		err = h(srv, wrappedSS)
+		s.End()
 		return nil, err
 	default:
+		middlewaresSpan.End()
 	}
 	return nil, fmt.Errorf("Request type is not implemented")
 }
