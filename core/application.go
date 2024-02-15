@@ -2,6 +2,7 @@ package core
 
 import (
 	"log"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -14,6 +15,7 @@ type Application struct {
 	httpServer          *GoMsHttpServer
 	Services            map[string]GoMsServiceInterface
 	servicesConstructor map[string]GoMsServiceFunc
+	clientManager       *GrpcClientManager
 }
 
 func NewApplication(config *Config, services map[string]GoMsServiceFunc, middlewares map[string]Middleware) *Application {
@@ -39,6 +41,7 @@ func NewApplication(config *Config, services map[string]GoMsServiceFunc, middlew
 		httpServer:          httpServer,
 		Services:            make(map[string]GoMsServiceInterface),
 		servicesConstructor: make(map[string]GoMsServiceFunc),
+		clientManager:       NewGrpcClientManager(),
 	}
 
 	app.RegisterServices(services)
@@ -66,6 +69,18 @@ func (o *Application) Start() {
 		log.Fatal(err)
 	}
 
+	if err := o.clientManager.InitConnections(); err != nil {
+		log.Fatal(err)
+	}
+
+	for name, service := range o.Services {
+		conn, err := o.clientManager.GetConnection(name)
+		if err != nil {
+			log.Fatal(err)
+		}
+		o.clientManager.AddClient(name, service.GetClient(conn))
+	}
+
 	err = o.httpServer.Start()
 	if err != nil {
 		log.Fatal(err)
@@ -84,6 +99,8 @@ func (o *Application) RegisterServices(services map[string]GoMsServiceFunc) {
 func (o *Application) RegisterService(name string, constructor GoMsServiceFunc) {
 	o.servicesConstructor[name] = constructor
 	o.Services[name] = o.InitService(name, o.config.Services[name])
+	o.clientManager.AddServer(name, o.config.Grpc.Host, o.config.Grpc.Port, 50*time.Second)
+	o.Services[name].SetClientManager(o.clientManager)
 }
 
 func (o *Application) InitService(name string, config ServiceConfig) GoMsServiceInterface {
@@ -103,7 +120,6 @@ func (o *Application) InitService(name string, config ServiceConfig) GoMsService
 
 func RegisterServiceMap[T GoMsServiceInterface](constructor func(*Context, string, ServiceConfig) T) func(*Context, string, ServiceConfig) T {
 	return func(ctx *Context, name string, config ServiceConfig) T {
-		log.Printf("[%s] %v", name, config)
 		return constructor(ctx, name, config)
 	}
 }

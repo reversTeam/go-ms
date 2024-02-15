@@ -4,6 +4,8 @@ lint:
 	golangci-lint run core/*
 
 install:
+	go get github.com/favadi/protoc-go-inject-tag@latest
+	go install github.com/favadi/protoc-go-inject-tag@latest
 	go get ./...
 	go mod tidy
 
@@ -25,6 +27,8 @@ protogen:
 		  --openapiv2_out=logtostderr=true:. \
 		$$proto ; \
 	done
+	@echo "Processing protoc-inject-tag";
+	@protoc-go-inject-tag --input="services/*/protobuf/*.pb.go"
 
 clean:
 	rm services/**/protobuf/*.pb.go || true

@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"crypto/rand"
+	"math/big"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -20,4 +22,17 @@ func Trace(ctx context.Context, name string, action string) (context.Context, tr
 	ctx, span := tracer.Start(ctx, action, trace.WithSpanKind(trace.SpanKindServer))
 
 	return ctx, span
+}
+
+func GenerateRandomString(length int) (string, error) {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		randInt, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			return "", err
+		}
+		b[i] = charset[randInt.Int64()]
+	}
+	return string(b), nil
 }

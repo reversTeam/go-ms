@@ -16,12 +16,13 @@ type GoMsServiceInterface interface {
 	GetName() string
 	GetHandler() GoMsHandlerInterface
 
+	SetClientManager(*GrpcClientManager)
+
 	RegisterHttp(*GoMsHttpServer, string) error
 	RegisterGrpc(*GoMsGrpcServer)
+	GetClient(conn *grpc.ClientConn) any
 
 	GetMiddlewaresConf() map[string][]string
-
-	Log(message string)
 }
 
 // Defition of ServerGracefulStopableInterface for http & grpc server graceful stop
