@@ -7,7 +7,18 @@ import (
 	"net"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
+
+// wrappedServerStream is a wrapper around grpc.ServerStream to override the Context method.
+type wrappedServerStream struct {
+	grpc.ServerStream
+	Ctx context.Context
+}
+
+func (w *wrappedServerStream) Context() context.Context {
+	return w.Ctx
+}
 
 // Define the GRPC Server Struct
 type GoMsGrpcServer struct {
@@ -78,15 +89,94 @@ func (o *GoMsGrpcServer) startServices() {
 	}
 }
 
+func (o *GoMsGrpcServer) UnaryErrorInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	parentCtx, span := Trace(ctx, "gprc", info.FullMethod)
+	defer span.End()
+
+	middlewareCtx, middlewaresSpan := Trace(parentCtx, "gprc", "middlewares")
+	res, err := applyMiddleware(middlewareCtx, nil, req, info, handler, o.Middlewares, o.MiddlewaresConf)
+	if err != nil {
+		ctx = middlewareCtx
+	}
+	middlewaresSpan.End()
+
+	if err == nil {
+		handlerCtx, handlderSpan := Trace(parentCtx, "gprc", "handler")
+		res, err = handler(handlerCtx, req)
+		handlderSpan.End()
+		if err != nil {
+			ctx = handlerCtx
+		}
+	}
+
+	if err != nil {
+		parentCtx = context.WithValue(ctx, grpcErrorKey, err)
+		httpError := err.(*HttpError)
+		if httpError.Code > 0 {
+			if mdL, ok := metadata.FromIncomingContext(parentCtx); ok {
+				md1 := metadata.Pairs("http-status-code", fmt.Sprintf("%d", httpError.Code))
+				md = metadata.Join(mdL, md1)
+			}
+		}
+	}
+
+	if e := grpc.SendHeader(ctx, md); e != nil {
+		log.Printf("Warning: %s", e)
+	}
+
+	return res, err
+}
+
+func StreamErrorInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	wrappedStream := &wrappedServerStream{ServerStream: ss}
+	err := handler(srv, wrappedStream)
+	if err != nil {
+		wrappedStream.Ctx = context.WithValue(ss.Context(), grpcErrorKey, err)
+	}
+	return err
+}
+
 func (o *GoMsGrpcServer) InitServer() {
 	options := []grpc.ServerOption{
-		grpc.UnaryInterceptor(chainInterceptors(loggingMiddleware, func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-			return applyMiddleware(ctx, nil, req, info, handler, o.Middlewares, o.MiddlewaresConf)
+		//*
+		grpc.UnaryInterceptor(o.UnaryErrorInterceptor),
+		grpc.StreamInterceptor(StreamErrorInterceptor),
+		/*/
+		grpc.UnaryInterceptor(chainInterceptors(loggingMiddleware, func(parentCtx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+			requestCtx, sp := Trace(parentCtx, "gprc", "request-processus")
+			defer sp.End()
+			log.Printf("BEFORE APPLY MIDDLEWARE : %v\n", o.Middlewares)
+			res, err := applyMiddleware(requestCtx, nil, req, info, handler, o.Middlewares, o.MiddlewaresConf)
+			log.Println("AFTER APPLY MIDDLEWARE")
+
+			if err == nil {
+				res, err = handler(requestCtx, req)
+			}
+
+			if err != nil {
+				// Vous pouvez traiter l'erreur ici si nécessaire avant de la stocker dans le contexte.
+				httpError := err.(*HttpError)
+				ctx := context.WithValue(parentCtx, "grpcError", httpError)
+				if httpError.Code > 0 {
+					log.Printf("ERROR = %v - %d\n", httpError, httpError.Code)
+					md := metadata.Pairs("http-status-code", fmt.Sprintf("%d", httpError.Code))
+					grpc.SendHeader(ctx, md)
+				}
+			}
+
+			log.Printf("RESPONSE = %v\n", res)
+
+			return res, err
 		})),
 		grpc.StreamInterceptor(chainStreamInterceptors(loggingStreamMiddleware, func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-			_, e := applyMiddleware(stream.Context(), srv, stream, info, handler, o.Middlewares, o.MiddlewaresConf)
-			return e
+			ctx := stream.Context()
+			ctx, sp := Trace(ctx, "gprc", "request-processus")
+			defer sp.End()
+			_, err := applyMiddleware(ctx, srv, stream, info, handler, o.Middlewares, o.MiddlewaresConf)
+			return err
 		})),
+		//*/
 	}
 
 	o.Server = grpc.NewServer(options...)
@@ -101,9 +191,8 @@ func (o *GoMsGrpcServer) Start() error {
 	}
 	o.startServices()
 	go func(grpcServer *grpc.Server) {
-		err := grpcServer.Serve(o.listener)
-		// we can't catch this error, also we log it
-		if err != nil {
+		if err := grpcServer.Serve(o.listener); err != nil {
+			// we can't catch this error, also we log it
 			log.Fatal(err)
 		}
 	}(o.Server)

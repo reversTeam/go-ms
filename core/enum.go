@@ -12,3 +12,7 @@ const (
 	Gracefull GoMsServerState = 5
 	Stop      GoMsServerState = 6
 )
+
+const (
+	ScyllaErrorNotFound string = "[not found]"
+)

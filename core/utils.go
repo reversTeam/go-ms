@@ -10,13 +10,15 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-func Trace(ctx context.Context, name string, action string) (context.Context, trace.Span) {
+func Trace(ctxParent context.Context, name string, action string) (context.Context, trace.Span) {
 	propagator := otel.GetTextMapPropagator()
+	ctx := ctxParent
+
 	md, ok := metadata.FromIncomingContext(ctx)
 	if ok {
-		propagator.Inject(ctx, MetadataReaderWriter{md})
-		ctx = propagator.Extract(ctx, MetadataReaderWriter{md})
+		propagator.Inject(ctxParent, MetadataReaderWriter{md})
 	}
+	ctx = propagator.Extract(ctxParent, MetadataReaderWriter{md})
 
 	tracer := otel.Tracer(name)
 	ctx, span := tracer.Start(ctx, action, trace.WithSpanKind(trace.SpanKindServer))
