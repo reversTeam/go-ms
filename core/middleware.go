@@ -16,6 +16,7 @@ func (m *BaseMiddleware) Unary() grpc.UnaryServerInterceptor {
 		if err != nil {
 			return nil, err
 		}
+
 		return handler(newCtx, newReq)
 	}
 }

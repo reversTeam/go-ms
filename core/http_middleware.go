@@ -21,16 +21,20 @@ func tracingMiddleware(next http.Handler) http.Handler {
 		ctx, span := Trace(r.Context(), "http", fmt.Sprintf("[%s]%s:%s", method, host, path))
 		defer span.End()
 
+		requestId := span.SpanContext().SpanID().String()
+		// w.Header().Set("x-request-id", requestId)
+
 		span.SetAttributes(attribute.String("http.method", method))
 		span.SetAttributes(attribute.String("http.path", path))
 		span.SetAttributes(attribute.String("http.host", host))
+		span.SetAttributes(attribute.String("http.request.id", requestId))
+		ctx = context.WithValue(ctx, requestIdKey, requestId)
 		otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(r.Header))
-		w.Header().Set("x-request-id", span.SpanContext().SpanID().String())
 
 		rwh := NewResponseWriterHandler(w)
-		defer rwh.Finalize()
-
 		r = r.WithContext(ctx)
+		defer rwh.Finalize(ctx)
+
 		next.ServeHTTP(rwh, r)
 	})
 }
@@ -48,9 +52,14 @@ func forwardHeaders(ctx context.Context, req *http.Request) metadata.MD {
 	for name, values := range req.Header {
 		if _, ok := excludeHeaders[strings.ToLower(name)]; !ok {
 			for _, value := range values {
+				// log.Printf("==== APPEND HEADER: %s - %s\n", name, value)
 				md.Append(strings.ToLower(name), value)
 			}
 		}
 	}
+
+	// log.Printf("MD: %v\n", md)
+	// log.Printf("HEADERS: %v\n", req.Header)
+
 	return md
 }

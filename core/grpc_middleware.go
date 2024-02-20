@@ -6,95 +6,119 @@ import (
 	"strings"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 )
 
-func chainInterceptors(interceptors ...grpc.UnaryServerInterceptor) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		for i := len(interceptors) - 1; i >= 0; i-- {
-			currentInterceptor := interceptors[i]
-			nextHandler := handler
-
-			handler = func(currentCtx context.Context, currentReq interface{}) (interface{}, error) {
-				return currentInterceptor(currentCtx, currentReq, info, nextHandler)
-			}
-		}
-		return handler(ctx, req)
-	}
+type GoMsResponseWrapper struct {
+	Code     int
+	Response interface{}
 }
 
-func chainStreamInterceptors(interceptors ...grpc.StreamServerInterceptor) grpc.StreamServerInterceptor {
-	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		var chainHandler grpc.StreamHandler
+// TODO: Useless code
+// func chainInterceptors(interceptors ...grpc.UnaryServerInterceptor) grpc.UnaryServerInterceptor {
+// 	return func(parentCtx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+// 		currentCtx := parentCtx
+// 		lastCtx := parentCtx
+// 		var err error
+// 		var res interface{}
 
-		chainHandler = func(srv interface{}, stream grpc.ServerStream) error {
-			return handler(srv, stream)
-		}
+// 		for i := range interceptors {
+// 			index := len(interceptors) - 1 - i
+// 			log.Printf("---- LOOP : %d / %d\n", i, index)
 
-		for i := len(interceptors) - 1; i >= 0; i-- {
-			currentInterceptor := interceptors[i]
-			nextHandler := chainHandler
+// 			currentInterceptor := interceptors[index]
+// 			currentHandler := handler
 
-			chainHandler = func(srv interface{}, stream grpc.ServerStream) error {
-				return currentInterceptor(srv, stream, info, nextHandler)
-			}
-		}
+// 			nextHandler := func(ctx context.Context, req interface{}) (interface{}, error) {
+// 				return currentHandler(ctx, req)
+// 			}
 
-		return chainHandler(srv, stream)
-	}
-}
+// 			currentHandler = func(innerCtx context.Context, innerReq interface{}) (interface{}, error) {
+// 				return currentInterceptor(innerCtx, innerReq, info, nextHandler)
+// 			}
 
-func loggingMiddleware(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	ctx, span := Trace(ctx, "grpc", info.FullMethod)
-	defer span.End()
+// 			res, err = currentHandler(currentCtx, err)
+// 			if err != nil {
+// 				break
+// 			}
+// 		}
 
-	spanContext := span.SpanContext()
-	spanID := spanContext.SpanID().String()
-	spanIDHeader := metadata.Pairs("request-id", spanID)
+// 		if err == nil {
+// 			res, err = handler(lastCtx, req)
+// 		}
 
-	if err := grpc.SendHeader(ctx, spanIDHeader); err != nil {
-		return nil, err
-	}
+// 		if err != nil {
+// 			if httpErr, ok := err.(*HttpError); ok {
+// 				md := metadata.Pairs("http-status-code", fmt.Sprintf("%d", httpErr.Code))
+// 				grpc.SendHeader(lastCtx, md)
+// 			}
+// 		}
 
-	return handler(ctx, req)
-}
+// 		return res, err
+// 	}
+// }
 
-func loggingStreamMiddleware(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	ctx := stream.Context()
-	ctx, span := Trace(ctx, "grpc", info.FullMethod)
-	defer span.End()
+// func chainStreamInterceptors(interceptors ...grpc.StreamServerInterceptor) grpc.StreamServerInterceptor {
+// 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+// 		var chainHandler grpc.StreamHandler
 
-	spanContext := span.SpanContext()
-	spanID := spanContext.SpanID().String()
-	spanIDHeader := metadata.Pairs("request-id", spanID)
+// 		chainHandler = func(srv interface{}, stream grpc.ServerStream) error {
+// 			return handler(srv, stream)
+// 		}
 
-	err := stream.SendHeader(spanIDHeader)
-	if err != nil {
-		return err
-	}
+// 		for i := len(interceptors) - 1; i >= 0; i-- {
+// 			currentInterceptor := interceptors[i]
+// 			nextHandler := chainHandler
 
-	return handler(srv, &wrappedServerStream{ServerStream: stream, ctx: ctx})
-}
+// 			chainHandler = func(srv interface{}, stream grpc.ServerStream) error {
+// 				return currentInterceptor(srv, stream, info, nextHandler)
+// 			}
+// 		}
 
-// wrappedServerStream is a wrapper around grpc.ServerStream to override the Context method.
-type wrappedServerStream struct {
-	grpc.ServerStream
-	ctx context.Context
-}
+// 		return chainHandler(srv, stream)
+// 	}
+// }
 
-func (w *wrappedServerStream) Context() context.Context {
-	return w.ctx
-}
+// func loggingMiddleware(parentCtx context.Context, params interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+// 	middlewareCtx, span := Trace(parentCtx, "grpc", info.FullMethod)
+// 	defer span.End()
+
+// 	spanContext := span.SpanContext()
+// 	spanID := spanContext.SpanID().String()
+// 	spanIDHeader := metadata.Pairs("request-id", spanID)
+
+// 	if err := grpc.SendHeader(middlewareCtx, spanIDHeader); err != nil {
+// 		return nil, err
+// 	}
+
+// 	return handler(middlewareCtx, params)
+// }
+
+// func loggingStreamMiddleware(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+// 	ctx := stream.Context()
+// 	ctx, span := Trace(ctx, "grpc", info.FullMethod)
+// 	defer span.End()
+
+// 	spanContext := span.SpanContext()
+// 	spanID := spanContext.SpanID().String()
+// 	spanIDHeader := metadata.Pairs("request-id", spanID)
+
+// 	err := stream.SendHeader(spanIDHeader)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	return handler(srv, &wrappedServerStream{ServerStream: stream, Ctx: ctx})
+// }
 
 func applySelectedMiddleware(ctx context.Context, res interface{}, selectedMiddlewares []string, middlewares map[string]Middleware) (context.Context, interface{}, error) {
 	var err error
 
 	for _, middleware := range selectedMiddlewares {
-		_, middlewareSpan := Trace(ctx, "middleware", middleware)
-		ctx, res, err = middlewares[middleware].Apply(ctx, res)
+		mctx, middlewareSpan := Trace(ctx, "middleware", middleware)
+		_, res, err = middlewares[middleware].Apply(mctx, res)
 		middlewareSpan.End()
 		if err != nil {
-			return nil, nil, err
+			return ctx, nil, err
 		}
 	}
 
@@ -104,7 +128,7 @@ func applySelectedMiddleware(ctx context.Context, res interface{}, selectedMiddl
 func applyMiddleware(ctx context.Context, srv interface{}, req interface{}, info interface{}, handler interface{}, middlewares map[string]Middleware, mdConf map[string]map[string][]string) (interface{}, error) {
 	var err error
 	var res interface{} = req
-	middlewaresCtx, middlewaresSpan := Trace(ctx, "gprc", "middlewares")
+	parentCtx := ctx
 
 	switch h := handler.(type) {
 	case grpc.UnaryHandler:
@@ -112,21 +136,18 @@ func applyMiddleware(ctx context.Context, srv interface{}, req interface{}, info
 		service := strings.Split(methodParts[1], ".")[3]
 		methodName := methodParts[len(methodParts)-1]
 
-		_, res, err = applySelectedMiddleware(middlewaresCtx, res, mdConf[service][methodName], middlewares)
+		_, res, err = applySelectedMiddleware(parentCtx, res, mdConf[service][methodName], middlewares)
 		if err != nil {
 			return nil, err
 		}
-		middlewaresSpan.End()
-		handleCtx, s := Trace(ctx, "gprc", "handler")
-		i, e := h(handleCtx, res)
-		s.End()
-		return i, e
+
+		return res, err
 	case grpc.StreamHandler:
 		methodParts := strings.Split(info.(*grpc.StreamServerInfo).FullMethod, "/")
 		service := strings.Split(methodParts[1], ".")[3]
 		methodName := methodParts[len(methodParts)-1]
 
-		_, _, err := applySelectedMiddleware(middlewaresCtx, res, mdConf[service][methodName], middlewares)
+		_, _, err := applySelectedMiddleware(parentCtx, res, mdConf[service][methodName], middlewares)
 		if err != nil {
 			return nil, err
 		}
@@ -135,15 +156,14 @@ func applyMiddleware(ctx context.Context, srv interface{}, req interface{}, info
 		if !ok {
 			return nil, fmt.Errorf("expected grpc.ServerStream, got %T", req)
 		}
-		middlewaresSpan.End()
+		// middlewaresSpan.End()
 		handleCtx, s := Trace(ctx, "gprc", "handler")
+		defer s.End()
 		wrappedSS := wrapServerStream(ss, handleCtx)
 
-		err = h(srv, wrappedSS)
-		s.End()
-		return nil, err
+		return nil, h(srv, wrappedSS)
 	default:
-		middlewaresSpan.End()
+		// middlewaresSpan.End()
 	}
 	return nil, fmt.Errorf("Request type is not implemented")
 }

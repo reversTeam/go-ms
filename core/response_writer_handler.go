@@ -2,9 +2,11 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"log"
@@ -26,24 +28,36 @@ func NewResponseWriterHandler(w http.ResponseWriter) *ResponseWriterHandler {
 	}
 }
 
-func (rw *ResponseWriterHandler) WriteHeader(code int) {
-	rw.StatusCode = code
-	rw.ResponseWriter.WriteHeader(code)
+func (o *ResponseWriterHandler) WriteHeader(code int) {
+	headers := o.Header().Values("Grpc-Metadata-Http-Status-Code")
+	if len(headers) > 0 {
+		if c, err := strconv.Atoi(headers[0]); err == nil {
+			o.StatusCode = c
+		}
+	} else {
+		o.StatusCode = 200
+	}
+
+	o.ResponseWriter.WriteHeader(o.StatusCode)
 }
 
-func (rw *ResponseWriterHandler) Write(b []byte) (int, error) {
-	return rw.buffer.Write(b)
+func (o *ResponseWriterHandler) Write(b []byte) (int, error) {
+	if !o.headersCleaned {
+		o.headersCleaned = true
+		o.cleanGrpcHeaders()
+	}
+	return o.buffer.Write(b)
 }
 
-func (rw *ResponseWriterHandler) Flush() {
-	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
-		rw.emitBufferedData()
+func (o *ResponseWriterHandler) Flush() {
+	if flusher, ok := o.ResponseWriter.(http.Flusher); ok {
+		o.emitBufferedData()
 		flusher.Flush()
 	}
 }
 
-func (rw *ResponseWriterHandler) emitBufferedData() {
-	data := rw.buffer.Bytes()
+func (o *ResponseWriterHandler) emitBufferedData() {
+	data := o.buffer.Bytes()
 	if len(data) == 0 {
 		return
 	}
@@ -53,52 +67,48 @@ func (rw *ResponseWriterHandler) emitBufferedData() {
 	}
 
 	if err := json.Unmarshal(data, &testResult); err != nil {
-		rw.ResponseWriter.WriteHeader(http.StatusInternalServerError)
+		o.ResponseWriter.WriteHeader(o.StatusCode)
 		return
 	}
 
-	rw.buffer.Reset()
+	o.buffer.Reset()
 
 	var result []json.RawMessage
 
 	if testResult.Result[0] == '[' {
 		if err := json.Unmarshal(testResult.Result, &result); err != nil {
-			rw.ResponseWriter.WriteHeader(http.StatusInternalServerError)
+			o.ResponseWriter.WriteHeader(o.StatusCode)
 			return
 		}
 	} else {
-		rw.entities = append(rw.entities, testResult.Result)
+		o.entities = append(o.entities, testResult.Result)
 	}
 }
 
-func (rw *ResponseWriterHandler) Finalize() {
-	isStream := rw.ResponseWriter.Header().Get("Transfer-Encoding") == "chunked"
-	if !rw.headersCleaned {
-		rw.headersCleaned = true
-		rw.cleanGrpcHeaders()
-	}
+func (o *ResponseWriterHandler) Finalize(ctx context.Context) {
+	isStream := o.ResponseWriter.Header().Get("Transfer-Encoding") == "chunked"
 
-	if isStream && rw.StatusCode == 200 {
-		if len(rw.entities) == 0 {
-			if _, err := rw.ResponseWriter.Write([]byte("[]")); err != nil {
+	if isStream && o.StatusCode == 200 {
+		if len(o.entities) == 0 {
+			if _, err := o.ResponseWriter.Write([]byte("[]")); err != nil {
 				log.Printf("ERROR occurred on Finalize HTTP request: %s\n", err)
 			}
-		} else if encodedData, err := json.Marshal(rw.entities); err == nil {
-			if _, err = rw.ResponseWriter.Write(encodedData); err != nil {
+		} else if encodedData, err := json.Marshal(o.entities); err == nil {
+			if _, err = o.ResponseWriter.Write(encodedData); err != nil {
 				log.Printf("ERROR occurred on Finalize HTTP request: %s\n", err)
 			}
 		} else {
-			rw.ResponseWriter.WriteHeader(http.StatusInternalServerError)
+			o.ResponseWriter.WriteHeader(o.StatusCode)
 		}
 	} else {
-		if _, err := rw.ResponseWriter.Write(rw.buffer.Bytes()); err != nil {
+		if _, err := o.ResponseWriter.Write(o.buffer.Bytes()); err != nil {
 			log.Printf("ERROR occurred on Finalize HTTP request: %s\n", err)
 		}
 	}
 }
 
-func (rw *ResponseWriterHandler) cleanGrpcHeaders() {
-	headers := rw.ResponseWriter.Header()
+func (o *ResponseWriterHandler) cleanGrpcHeaders() {
+	headers := o.ResponseWriter.Header()
 	for name := range headers {
 		if strings.HasPrefix(strings.ToLower(name), "grpc-metadata-") {
 			newName := name[14:]
@@ -108,7 +118,7 @@ func (rw *ResponseWriterHandler) cleanGrpcHeaders() {
 				values := headers[name]
 				delete(headers, name)
 				for _, value := range values {
-					rw.ResponseWriter.Header().Add(newName, value)
+					o.ResponseWriter.Header().Set(newName, value)
 				}
 			} else {
 				delete(headers, name)
